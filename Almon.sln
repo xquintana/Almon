@@ -1,0 +1,69 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Almon", "Almon\Almon.vcxproj", "{F2FAF8EC-C591-43A6-B509-EE788F2C332C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9} = {F3C8DD27-15AB-4B73-A499-C32181ACACC9}
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE} = {F142A341-5EE0-442D-A15F-98AE9B48DBAE}
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B} = {E1EEC688-EA15-462C-A166-C1D0D8172F5B}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HeapyInject", "HeapyInject\HeapyInject.vcxproj", "{F3C8DD27-15AB-4B73-A499-C32181ACACC9}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE} = {F142A341-5EE0-442D-A15F-98AE9B48DBAE}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libMinHook", "libs\minhook\build\VC15\libMinHook.vcxproj", "{F142A341-5EE0-442D-A15F-98AE9B48DBAE}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AlmonTester", "AlmonTester\AlmonTester.vcxproj", "{E1EEC688-EA15-462C-A166-C1D0D8172F5B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Debug|x64.ActiveCfg = Debug|x64
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Debug|x64.Build.0 = Debug|x64
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Debug|x86.ActiveCfg = Debug|Win32
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Debug|x86.Build.0 = Debug|Win32
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Release|x64.ActiveCfg = Release|x64
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Release|x64.Build.0 = Release|x64
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Release|x86.ActiveCfg = Release|Win32
+		{F2FAF8EC-C591-43A6-B509-EE788F2C332C}.Release|x86.Build.0 = Release|Win32
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Debug|x64.ActiveCfg = Debug|x64
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Debug|x64.Build.0 = Debug|x64
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Debug|x86.ActiveCfg = Debug|Win32
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Debug|x86.Build.0 = Debug|Win32
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Release|x64.ActiveCfg = Release|x64
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Release|x64.Build.0 = Release|x64
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Release|x86.ActiveCfg = Release|Win32
+		{F3C8DD27-15AB-4B73-A499-C32181ACACC9}.Release|x86.Build.0 = Release|Win32
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Debug|x64.ActiveCfg = Debug|x64
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Debug|x64.Build.0 = Debug|x64
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Debug|x86.ActiveCfg = Debug|Win32
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Debug|x86.Build.0 = Debug|Win32
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Release|x64.ActiveCfg = Release|x64
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Release|x64.Build.0 = Release|x64
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Release|x86.ActiveCfg = Release|Win32
+		{F142A341-5EE0-442D-A15F-98AE9B48DBAE}.Release|x86.Build.0 = Release|Win32
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Debug|x64.ActiveCfg = Debug|x64
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Debug|x64.Build.0 = Debug|x64
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Debug|x86.ActiveCfg = Debug|Win32
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Debug|x86.Build.0 = Debug|Win32
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Release|x64.ActiveCfg = Release|x64
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Release|x64.Build.0 = Release|x64
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Release|x86.ActiveCfg = Release|Win32
+		{E1EEC688-EA15-462C-A166-C1D0D8172F5B}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3064655A-32E4-4AFB-A3ED-47ED78881E48}
+	EndGlobalSection
+EndGlobal
