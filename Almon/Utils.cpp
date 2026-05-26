@@ -4,7 +4,6 @@
 #define MAX_TEXT_LEN 2048
 
 
-
 bool ShowError(LPCSTR fmt, ...)
 {
 	va_list args;
@@ -93,17 +92,20 @@ CString GetWinErrorDescription(DWORD errorCode)
 
 CString GetExceptionMessage(CException* pEx)
 {
-	constexpr int nMaxSize = 2048;
-	char sMessage[nMaxSize];
-	ZeroMemory(sMessage, nMaxSize);
-	if (pEx) pEx->GetErrorMessage(sMessage, nMaxSize);
-	return CString(sMessage);
+	CString sMessage;
+	if (pEx)
+	{
+		constexpr int nMaxSize = 2048;
+		pEx->GetErrorMessage(sMessage.GetBuffer(nMaxSize), nMaxSize);
+		sMessage.ReleaseBuffer();
+	}
+	return sMessage;
 }
 
 CString GetTimestamp()
 {
 	SYSTEMTIME t;
-	GetLocalTime(&t);	
+	GetLocalTime(&t);
 	return StringFmt("%02d%02d%02d-%02d%02d%02d", t.wYear - 2000, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
 }
 
@@ -121,11 +123,11 @@ void GetUnits(size_t numBytes, CString& units)
 		units.Format("%zd %s", numBytes, "Bytes");
 }
 
-void ClearQueue(BufferQueue* pQueue, bool bDelete)
+void ClearQueue(AllocBufferQueue* pQueue, bool bDelete)
 {
 	while (pQueue->size() > 0)
 	{
-		BufferInfo bufferInfo = pQueue->front();
+		AllocBuffer bufferInfo = pQueue->front();
 		pQueue->pop();
 		delete[] bufferInfo.pBuffer;
 	}
@@ -172,23 +174,23 @@ CString GetCurrentProcessPath()
 	return sPath;
 }
 
-CString GetFileName(const CString& fullPath) 
+CString GetFileName(const CString& fullPath)
 {
-	int pos = fullPath.ReverseFind(_T('\\'));
+	int pos = fullPath.ReverseFind('\\');
 	if (pos != -1)
-		return fullPath.Right(fullPath.GetLength() - pos - 1);	
+		return fullPath.Right(fullPath.GetLength() - pos - 1);
 	return fullPath;
 }
 
-CString GetFileExtension(const CString& fullPath) 
+CString GetFileExtension(const CString& fullPath)
 {
-	int pos = fullPath.ReverseFind(_T('.'));
+	int pos = fullPath.ReverseFind('.');
 
 	// Ensure the dot is after the last backslash to avoid finding dots in folder names
-	int lastSlash = fullPath.ReverseFind(_T('\\'));
+	int lastSlash = fullPath.ReverseFind('\\');
 
-	if (pos != -1 && pos > lastSlash) 
-		return fullPath.Mid(pos);	
+	if (pos != -1 && pos > lastSlash)
+		return fullPath.Mid(pos);
 	return ""; // No extension found
 }
 
@@ -205,18 +207,64 @@ bool EnsureDirectoryExists(const char* path)
 
 bool ContainsFrame(const CallStackInfo& stack, std::vector<CString>& filter)
 {
+	char buffer[2048];
 	for (int i = 0; i < stack.numFrames; i++)
 	{
-		CString frame(*stack.frames[i]);
-		frame.MakeUpper();
+		LPCSTR src = stack.frames[i]->GetString();
+		int len = stack.frames[i]->GetLength();
+
+		// Uppercase into a stack-allocated buffer; fall back to heap only for oversized frames
+		char* buf = (len < sizeof(buffer)) ? buffer : new char[len + 1];
+		for (int j = 0; j <= len; j++)
+			buf[j] = (char)toupper((unsigned char)src[j]);
+
 		for (const auto& f : filter)
-			if (frame.Find(f) >= 0)
+		{
+			if (strstr(buf, f.GetString()) != nullptr)
+			{
+				if (buf != buffer) delete[] buf;
 				return true;
+			}
+		}
+		if (buf != buffer) delete[] buf;
 	}
 	return false;
 }
 
+bool CopyTextToClipboard(CWnd* pWnd, const CString& text)
+{
+	bool ok = false;
+	if (pWnd->OpenClipboard())
+	{
+		EmptyClipboard();
+		size_t len = (text.GetLength() + 1) * sizeof(TCHAR);
+		HGLOBAL hClipboardData = GlobalAlloc(GMEM_MOVEABLE, len);
+		if (hClipboardData)
+		{
+			void* pMem = GlobalLock(hClipboardData);
+			if (pMem)
+			{
+				memcpy(pMem, text.GetString(), len);
+				GlobalUnlock(hClipboardData);
+				SetClipboardData((sizeof(TCHAR) == 1) ? CF_TEXT : CF_UNICODETEXT, hClipboardData);
+				ok = true;
+			}
+		}
+		CloseClipboard();
+	}
+	return ok;
+}
 
+CString EscapeXmlString(const CString& input)
+{
+	CString output = input;
+	output.Replace("&", "&amp;"); // Escape the ampersand first	
+	output.Replace("<", "&lt;");
+	output.Replace(">", "&gt;");
+	output.Replace("\"", "&quot;");
+	output.Replace("'", "&apos;");
+	return output;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Logger
@@ -264,10 +312,10 @@ CString Logger::GetLogDirectory()
 
 	CString logPath(szTempPath);
 
-	if (logPath.Right(1) != _T("\\"))
-		logPath += _T("\\");
+	if (logPath.Right(1) != "\\")
+		logPath += "\\";
 
-	logPath += _T("AlmonLogs\\");
+	logPath += "AlmonLogs\\";
 	return logPath;
 }
 
@@ -309,7 +357,7 @@ void PerfLogger::Write(const CString& logName)
 HighResCounter::HighResCounter()
 {
 	if (!QueryPerformanceFrequency(&m_frequency))
-	{		
+	{
 		ASSERT(0);
 	}
 }

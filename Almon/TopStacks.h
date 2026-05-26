@@ -21,6 +21,7 @@ struct TopStack
 	TopStack(TopStackInternal info) : stackInfo{ *(info.pStackInfo) }, color{ info.color } {};
 	CallStackInfo stackInfo;
 	TopStackColor color;
+	DWORD GetId() const { return color.id; }
 };
 
 struct SortedStack

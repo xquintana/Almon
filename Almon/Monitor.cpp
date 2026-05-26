@@ -6,10 +6,11 @@
 static constexpr bool g_bEnablePerfLog = false; // Enables the performance log, stored in "C:\Users\...\AppData\Local\Temp\AlmonLogs"
 static constexpr bool g_bEnableAllocTraces = ENABLE_TRACE_ALLOC;
 
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ModuleRanges
 
-bool ModuleRanges::FindModuleRetry(UINT_PTR address, CString& sModuleName)
+bool ModuleRanges::FindModuleRetry(Address address, CString& sModuleName)
 {
 	if (FindModule(address, sModuleName))
 		return true;
@@ -18,7 +19,7 @@ bool ModuleRanges::FindModuleRetry(UINT_PTR address, CString& sModuleName)
 	return FindModule(address, sModuleName);
 }
 
-bool ModuleRanges::FindModule(UINT_PTR address, CString& sModuleName)
+bool ModuleRanges::FindModule(Address address, CString& sModuleName)
 {
 	for (auto moduleInfo : m_modules)
 	{
@@ -54,9 +55,9 @@ bool ModuleRanges::UpdateModuleList(DWORD processID, std::vector<MODULEINFOEX>& 
 				do
 				{
 					pModuleName = pModuleNameTemp;
-					pModuleNameTemp = _tcsstr(pModuleNameTemp + 1, _T("\\"));
+					pModuleNameTemp = _tcsstr(pModuleNameTemp + 1, "\\");
 				} while (pModuleNameTemp);
-				if (pModuleName[0] == _T('\\')) pModuleName++;
+				if (pModuleName[0] == '\\') pModuleName++;
 
 				DWORD64 startAddress = reinterpret_cast<DWORD64>(moduleInfo.lpBaseOfDll);
 				modules.emplace_back(startAddress, moduleInfo.SizeOfImage, pModuleName);
@@ -128,8 +129,8 @@ Monitor::Monitor()
 {
 	ZeroMemory(&m_targetProcInfo, sizeof(m_targetProcInfo));
 
-	InitializeSRWLock(&m_lckBufferQueue);
-	InitializeSRWLock(&m_lckGraphQueue);
+	InitializeSRWLock(&m_lckAllocBufferQueue);
+	InitializeSRWLock(&m_lckAllocInfoQueue);
 	InitializeSRWLock(&m_lckAddrQueue);
 	InitializeSRWLock(&m_lckAddrMap);
 
@@ -164,13 +165,13 @@ void Monitor::ClearAllocs()
 
 void Monitor::ClearAllocsInternal()
 {
-	AcquireSRWLockExclusive(&m_lckBufferQueue);
-	ClearQueue(&m_bufferQueue);
-	ReleaseSRWLockExclusive(&m_lckBufferQueue);
+	AcquireSRWLockExclusive(&m_lckAllocBufferQueue);
+	ClearQueue(&m_allocBufferQueue);
+	ReleaseSRWLockExclusive(&m_lckAllocBufferQueue);
 
-	AcquireSRWLockExclusive(&m_lckGraphQueue);
-	ClearContainer(m_graphQueue);
-	ReleaseSRWLockExclusive(&m_lckGraphQueue);
+	AcquireSRWLockExclusive(&m_lckAllocInfoQueue);
+	ClearContainer(m_allocInfoQueue);
+	ReleaseSRWLockExclusive(&m_lckAllocInfoQueue);
 
 	m_activeAllocationsMap.clear();
 	m_callStackMap.clear();
@@ -226,9 +227,9 @@ void Monitor::AllocReaderThread()
 {
 	try
 	{
-		while (!m_bExitThreads || m_bufferQueue.size() > 0)
+		while (!m_bExitThreads || m_allocBufferQueue.size() > 0)
 		{
-			while (m_bufferQueue.size() > 0 || m_bClearAllocs)
+			while (m_allocBufferQueue.size() > 0 || m_bClearAllocs)
 			{
 				if (m_bClearAllocs)
 				{
@@ -237,17 +238,17 @@ void Monitor::AllocReaderThread()
 					break;
 				}
 
-				AcquireSRWLockExclusive(&m_lckBufferQueue);
-				BufferInfo bufferInfo = m_bufferQueue.front();
-				m_bufferQueue.pop();
-				ReleaseSRWLockExclusive(&m_lckBufferQueue);
-				UpdateCallStackMap(bufferInfo);
+				AcquireSRWLockExclusive(&m_lckAllocBufferQueue);
+				AllocBuffer allocBuffer = m_allocBufferQueue.front();
+				m_allocBufferQueue.pop();
+				ReleaseSRWLockExclusive(&m_lckAllocBufferQueue);
+				UpdateCallStackMap(allocBuffer);
 
 				if constexpr (g_bEnablePerfLog)
-					m_perfLogger.AddBufferSize(m_bufferQueue.size());
+					m_perfLogger.AddBufferSize(m_allocBufferQueue.size());
 			}
 			if constexpr (g_bEnablePerfLog)
-				m_perfLogger.AddBufferSize(m_bufferQueue.size());
+				m_perfLogger.AddBufferSize(m_allocBufferQueue.size());
 
 			WaitForSingleObject(m_hExitThreads, 20);
 		}
@@ -258,57 +259,59 @@ void Monitor::AllocReaderThread()
 	}
 }
 
-void Monitor::UpdateCallStackMap(BufferInfo bufferInfo)
+void Monitor::UpdateCallStackMap(AllocBuffer allocBuffer)
 {
-	long len = 0;
-	AllocInfo info; // The call stack field will not be filled here.
-	CallStack callStack; // The call stack will be copied here instead.
-	CallStackInfo* pCallStackInfo = nullptr;
+	long pos{};
+	Address addr{};
+	Alloc alloc;
+	CallStack callStack;
+	CallStackInfo* pCallStackInfo{};
 	CallStackInfo newCallStackInfo;
 
-	BYTE* pBuffer = bufferInfo.pBuffer;
+	BYTE* pBuffer = allocBuffer.pBuffer;
 
-	while (len < bufferInfo.length)
+	while (pos < allocBuffer.length)
 	{
-		CopyMemory((PVOID) & (info.addr), (PVOID)(pBuffer + len), sizeof(info.addr));
-		len += sizeof(info.addr);
+		CopyMemory((PVOID) & (addr), (PVOID)(pBuffer + pos), sizeof(Address));
+		pos += sizeof(Address);
 
-		if (IS_ALLOC(info.addr))
+		if (IS_ALLOC(addr))
 		{
-			CopyMemory((PVOID) & (info.numBytes), (PVOID)(pBuffer + len), sizeof(info.numBytes));
-			len += sizeof(info.numBytes);
+			alloc.addr = addr;
+			CopyMemory((PVOID) & (alloc.numBytes), (PVOID)(pBuffer + pos), sizeof(alloc.numBytes));
+			pos += sizeof(alloc.numBytes);
 
 			if constexpr (g_bEnableAllocTraces)
 			{
-				Trace("[ALLOC] addr: 0x%p - size: %zd", info.addr, info.numBytes);
-				if (info.numBytes == 0)  Trace("[ALLOC] alloc size is ZERO");
-				if (info.addr == 0)  	 Trace("[ALLOC] alloc addr is ZERO");
+				Trace("[ALLOC] addr: 0x%p - size: %zd", alloc.addr, alloc.numBytes);
+				if (alloc.numBytes == 0)  Trace("[ALLOC] alloc size is ZERO");
+				if (alloc.addr == 0)  	 Trace("[ALLOC] alloc addr is ZERO");
 			}
 
-			CopyMemory((PVOID) & (info.numFrames), (PVOID)(pBuffer + len), sizeof(info.numFrames));
-			len += sizeof(info.numFrames);
+			CopyMemory((PVOID) & (alloc.numFrames), (PVOID)(pBuffer + pos), sizeof(alloc.numFrames));
+			pos += sizeof(alloc.numFrames);
 
-			ZeroMemory((PVOID)(callStack.data()), BACKTRACE_SIZE * sizeof(UINT_PTR));
-			CopyMemory((PVOID)(callStack.data()), (PVOID)(pBuffer + len), info.numFrames * sizeof(UINT_PTR));
-			len += BACKTRACE_SIZE * sizeof(UINT_PTR);
+			ZeroMemory((PVOID)(callStack.data()), BACKTRACE_SIZE * sizeof(Address));
+			CopyMemory((PVOID)(callStack.data()), (PVOID)(pBuffer + pos), alloc.numFrames * sizeof(Address));
+			pos += BACKTRACE_SIZE * sizeof(Address);
 
-			if (info.numFrames > 0)
+			if (alloc.numFrames > 0)
 			{
 				m_totalAllocs++;
-				m_totalBytes += info.numBytes;
+				m_totalBytes += alloc.numBytes;
 
 				auto iter = m_callStackMap.find(callStack);
 
 				if (iter == m_callStackMap.end())	// Call stack not found. Add it.
 				{
 					newCallStackInfo.numAllocs = 1;
-					newCallStackInfo.numBytes = info.numBytes;
-					newCallStackInfo.numBytesInUse = info.numBytes;
-					newCallStackInfo.numFrames = info.numFrames;
+					newCallStackInfo.numBytes = alloc.numBytes;
+					newCallStackInfo.numBytesInUse = alloc.numBytes;
+					newCallStackInfo.numFrames = alloc.numFrames;
 
 					// Translate call stack
-					UINT_PTR addr;
-					for (int i = 0; i < info.numFrames; i++)
+					Address addr;
+					for (int i = 0; i < alloc.numFrames; i++)
 					{
 						addr = callStack[i];
 						AcquireSRWLockExclusive(&m_lckAddrMap);
@@ -335,37 +338,36 @@ void Monitor::UpdateCallStackMap(BufferInfo bufferInfo)
 					// Call stack found. Update counters.
 					pCallStackInfo = &(iter->second);
 					pCallStackInfo->numAllocs++;
-					pCallStackInfo->numBytes += info.numBytes;
-					pCallStackInfo->numBytesInUse += info.numBytes;
+					pCallStackInfo->numBytes += alloc.numBytes;
+					pCallStackInfo->numBytesInUse += alloc.numBytes;
 				}
 
 				if constexpr (g_bEnableAllocTraces)
 				{
-					if (m_activeAllocationsMap.find(info.addr) != m_activeAllocationsMap.end())
-						Trace("[ALLOC] addr: 0x%p already in map -> info will be lost", info.addr);
+					if (m_activeAllocationsMap.find(alloc.addr) != m_activeAllocationsMap.end())
+						Trace("[ALLOC] addr: 0x%p already in map -> info will be lost", alloc.addr);
 				}
 
-				m_activeAllocationsMap.emplace(info.addr, ActiveAllocation{ info.numBytes , pCallStackInfo });
+				m_activeAllocationsMap.emplace(alloc.addr, ActiveAllocation{ alloc.numBytes , pCallStackInfo });
 
-				AcquireSRWLockExclusive(&m_lckGraphQueue);
-				m_graphQueue.emplace(info.numBytes, m_totalAllocs, m_totalBytes, callStack, pCallStackInfo);
-				ReleaseSRWLockExclusive(&m_lckGraphQueue);
+				AcquireSRWLockExclusive(&m_lckAllocInfoQueue);
+				m_allocInfoQueue.emplace(alloc.numBytes, m_totalAllocs, m_totalBytes, callStack, pCallStackInfo);
+				ReleaseSRWLockExclusive(&m_lckAllocInfoQueue);
 			}
 			else ASSERT(0);
-
 		}
 		else // free
 		{
-			info.addr &= ~FREE_MASK; // Remove free mask.
+			addr &= ~FREE_MASK; // Remove free mask.
 
 			m_totalFrees++;
 
-			if (info.addr != 0)
+			if (addr != 0)
 			{
 				if constexpr (g_bEnableAllocTraces)
-					Trace("[FREE] addr: 0x%Ix", info.addr);
+					Trace("[FREE] addr: 0x%Ix", addr);
 
-				if (auto iter = m_activeAllocationsMap.find(info.addr); iter != m_activeAllocationsMap.end())
+				if (auto iter = m_activeAllocationsMap.find(addr); iter != m_activeAllocationsMap.end())
 				{
 					ActiveAllocation& activeAllocation = iter->second;
 					activeAllocation.pCallStackInfo->numBytesInUse -= activeAllocation.numAllocBytes;
@@ -390,7 +392,7 @@ void Monitor::BufferReaderThread()
 
 	ResetEvent(m_memFileAlloc.GetEventBufferReady());
 
-	BufferInfo bufferInfo;
+	AllocBuffer bufferInfo;
 
 	DWORD waitResult;
 	DWORD lastBufferCounter = (DWORD)-1;
@@ -421,9 +423,9 @@ void Monitor::BufferReaderThread()
 			bufferInfo.pBuffer = new BYTE[bufferInfo.length];
 			CopyMemory((PVOID)(bufferInfo.pBuffer), (PVOID)((m_memFileAlloc.GetBuffer()) + offset), bufferInfo.length);
 
-			AcquireSRWLockExclusive(&m_lckBufferQueue);
-			m_bufferQueue.push(bufferInfo);
-			ReleaseSRWLockExclusive(&m_lckBufferQueue);
+			AcquireSRWLockExclusive(&m_lckAllocBufferQueue);
+			m_allocBufferQueue.push(bufferInfo);
+			ReleaseSRWLockExclusive(&m_lckAllocBufferQueue);
 
 			SetEvent(m_memFileAlloc.GetEventBufferProcessed());
 		}
@@ -461,7 +463,7 @@ void Monitor::AddressTranslatorThread()
 			ReleaseSRWLockExclusive(&m_lckAddrQueue);
 
 			// Copy address
-			CopyMemory((PVOID)(m_memFileAddr.GetBuffer()), (PVOID)&addr, sizeof(UINT_PTR));
+			CopyMemory((PVOID)(m_memFileAddr.GetBuffer()), (PVOID)&addr, sizeof(Address));
 
 			// Signal that the address is ready			
 			SetEvent(m_memFileAddr.GetEventBufferReady());
@@ -630,21 +632,21 @@ bool Monitor::Launch(CString& exe, const CString& arguments)
 	return true;
 }
 
-void Monitor::GetAllocData(size_t& totalAllocs, size_t& totalBytes)
+void Monitor::GetAllocMetrics(size_t& totalAllocs, size_t& totalBytes)
 {
 	totalAllocs = m_totalAllocs;
 	totalBytes = m_totalBytes;
 }
 
-void Monitor::GetData(size_t& totalAllocs, size_t& totalFrees, size_t& totalBytes, size_t& allocQueue, size_t& allocMap, size_t& addrQueue, size_t& addrMap, size_t& callstackMap)
+void Monitor::GetAllCurrentMetrics(size_t& totalAllocs, size_t& totalFrees, size_t& totalBytes, size_t& allocQueue, size_t& allocMap, size_t& addrQueue, size_t& addrMap, size_t& callStackMap)
 {
 	totalAllocs = m_totalAllocs;
 	totalFrees = m_totalFrees;
-	allocQueue = m_bufferQueue.size();
+	allocQueue = m_allocBufferQueue.size();
 	allocMap = m_activeAllocationsMap.size();
 	addrQueue = m_addrQueue.size();
 	addrMap = m_addrMap.size();
-	callstackMap = m_callStackMap.size();
+	callStackMap = m_callStackMap.size();
 	totalBytes = m_totalBytes;
 }
 
@@ -712,8 +714,8 @@ void Monitor::StopThreads()
 {
 	StopThread(m_threadAllocReader);
 
-	if (m_bufferQueue.size() != 0)
-		::MessageBox(NULL, "Buffer is not empty", "Warning", MB_OK | MB_ICONWARNING);
+	if (m_allocBufferQueue.size() != 0)
+		::MessageBox(NULL, "The allocation buffer queue could not be emptied.", "Warning", MB_OK | MB_ICONWARNING);
 
 	StopThread(m_threadBufferReader);
 	StopThread(m_threadAddressTranslator);
@@ -758,8 +760,8 @@ void Monitor::Clear()
 	m_totalFrees = 0;
 	m_totalBytes = 0;
 
-	ClearQueue(&m_bufferQueue);
-	ClearContainer(m_graphQueue);
+	ClearQueue(&m_allocBufferQueue);
+	ClearContainer(m_allocInfoQueue);
 	ClearContainer(m_addrQueue);
 
 	CloseMemFiles();

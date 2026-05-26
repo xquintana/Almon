@@ -3,7 +3,8 @@
 #include "CommonDefs.h"
 #include "Utils.h"
 #include "MemoryFile.h"
-#include "Canvas.h"
+#include "AllocTimeView.h"
+#include "TopStacksView.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,15 +26,15 @@ class ModuleRanges
 		CString sName;
 	};
 
-public:	
+public:
 	void SetProcessId(DWORD processId) { m_dwProcessId = processId; }
-	bool FindModule(UINT_PTR address, CString& moduleName);
-	bool FindModuleRetry(UINT_PTR address, CString& moduleName);
+	bool FindModule(Address address, CString& moduleName);
+	bool FindModuleRetry(Address address, CString& moduleName);
 	bool UpdateModuleList(DWORD processID, std::vector<MODULEINFOEX>& modules);
 
 protected:
 	DWORD m_dwProcessId{};
-	std::vector<MODULEINFOEX> m_modules;	
+	std::vector<MODULEINFOEX> m_modules;
 };
 
 
@@ -70,18 +71,18 @@ public:
 
 	void SetParent(CWnd* pParent) { m_pDialog = pParent; }
 	bool Start(const CString& exe, const CString& arguments);
-	void Stop();	
+	void Stop();
 	bool IsStarted() { return m_bIsStarted; }
 	bool CreateMemFiles();
-	void CloseMemFiles();	
+	void CloseMemFiles();
 	void ClearAllocs();
 
-	void GetAllocData(size_t& totalAllocs, size_t& totalBytes);
-	void GetData(size_t& totalAllocs, size_t& totalFrees, size_t& totalBytes, size_t& allocQueue, size_t& allocMap, size_t& addrQueue, size_t& addrMap, size_t& callstackMap);
-	
-	std::pair<GraphQueue&, SRWLOCK&> GetGraphQueue() { return { m_graphQueue, m_lckGraphQueue }; }
-	CallStackMap* GetCallStackMap() { return &m_callStackMap; }	
-	size_t GetBufferSize() { return  m_bufferQueue.size(); }
+	void GetAllocMetrics(size_t& totalAllocs, size_t& totalBytes);
+	void GetAllCurrentMetrics(size_t& totalAllocs, size_t& totalFrees, size_t& totalBytes, size_t& allocQueue, size_t& allocMap, size_t& addrQueue, size_t& addrMap, size_t& callStackMap);
+	std::pair<AllocInfoQueue&, SRWLOCK&> GetAllocInfoQueue() { return { m_allocInfoQueue, m_lckAllocInfoQueue }; }
+
+	CallStackMap* GetCallStackMap() { return &m_callStackMap; }
+	size_t GetBufferSize() { return  m_allocBufferQueue.size(); }
 	bool GetTextMessages(CString& sMessages, DWORD& numMessages) { return m_textMessages.GetTextMessages(sMessages, numMessages); }
 
 	bool HasError() { return m_bHasError; } // Returns true if the monitor has detected an error.
@@ -95,11 +96,11 @@ protected:
 	// 
 	// Originally from :
 	// http://www.codeproject.com/Articles/2082/API-hooking-revealed 
-	DWORD LoadLibraryInjection(HANDLE hProcess, const char *dllName);
+	DWORD LoadLibraryInjection(HANDLE hProcess, const char* dllName);
 
 	bool Launch(CString& exe, const CString& arguments);
-	
-	void ClearTranslatedAddresses();	
+
+	void ClearTranslatedAddresses();
 	void ClearAllocsInternal();
 
 	void AddTextMessage(const CString& message) { m_textMessages.AddTextMessage(message); }
@@ -107,14 +108,14 @@ protected:
 	// Threads
 	void MessageListenerThread();
 	void BufferReaderThread();
-	void AllocReaderThread();	
+	void AllocReaderThread();
 	void AddressTranslatorThread();
 	void TargetMonitorThread();
-	void StartThreads();		
+	void StartThreads();
 	void StopThreads(); // Waits for the threads to finish.
-	void StopThread(Thread<Monitor>& thread, Thread<Monitor>::Callback callback = nullptr);	
+	void StopThread(Thread<Monitor>& thread, Thread<Monitor>::Callback callback = nullptr);
 
-	void UpdateCallStackMap(BufferInfo bufferInfo);	
+	void UpdateCallStackMap(AllocBuffer bufferInfo);
 
 protected:
 	bool m_bIsStarted{};
@@ -124,9 +125,9 @@ protected:
 	CWnd* m_pDialog{}; // The parent dialog
 
 	// Counters
-	UINT64 m_totalAllocs{};
-	UINT64 m_totalFrees{};
-	UINT64 m_totalBytes{};
+	size_t m_totalAllocs{};
+	size_t m_totalFrees{};
+	size_t m_totalBytes{};
 
 	// Threads
 	HANDLE m_hExitThreads{};
@@ -135,13 +136,13 @@ protected:
 	Thread<Monitor> m_threadAllocReader;
 	Thread<Monitor> m_threadAddressTranslator;
 	Thread<Monitor> m_threadTargetMonitor;
-	Thread<Monitor> m_threadMessageListener;		
-	
+	Thread<Monitor> m_threadMessageListener;
+
 	// Locks
-	SRWLOCK m_lckBufferQueue;
-	SRWLOCK m_lckGraphQueue;
+	SRWLOCK m_lckAllocBufferQueue;
+	SRWLOCK m_lckAllocInfoQueue;
 	SRWLOCK m_lckAddrQueue;
-	SRWLOCK m_lckAddrMap;		
+	SRWLOCK m_lckAddrMap;
 
 	// Memory files
 	MemoryFile m_memFileAlloc;   // Used to receive allocs from the target exe (1 direction)
@@ -150,15 +151,15 @@ protected:
 
 	ActiveAllocationsMap m_activeAllocationsMap;
 	CallStackMap m_callStackMap;
-	BufferQueue m_bufferQueue;
+	AllocBufferQueue m_allocBufferQueue;
 	AddressQueue m_addrQueue; // Memory addresses (Instruction Pointers) pending to translate
 	AddressMap m_addrMap; // Returns the string associated to an address (instruction pointer)
-	GraphQueue m_graphQueue; // Contains the data to update the graphs
+	AllocInfoQueue m_allocInfoQueue; // Contains the data to update the real time views.
 
 	PROCESS_INFORMATION m_targetProcInfo;
 	CString m_targetExe; // Full path of the executable being monitorized
 
-	std::vector<CString*> m_listTranslatedAddr;	
+	std::vector<CString*> m_listTranslatedAddr;
 
 	ModuleRanges m_modules;
 	TextMessages m_textMessages;

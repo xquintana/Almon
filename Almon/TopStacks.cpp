@@ -1,5 +1,3 @@
-// TopStacksManager.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
 #include "stdafx.h"
 #include "TopStacks.h"
 #include "Utils.h"
@@ -22,7 +20,7 @@ void TopStacks::Add(const CallStack& stack, CallStackInfo* pInfo)
 		}
 		else
 		{
-			topInfo.color = { m_counter++ , m_colorRandomizer.GetRGBColor() };			
+			topInfo.color = { m_counter++ , m_colorRandomizer.GetRGBColor() };
 			m_pColorMap->emplace(stack, topInfo.color);
 		}
 		topInfo.pStackInfo = pInfo;

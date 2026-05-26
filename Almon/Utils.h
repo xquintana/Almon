@@ -38,7 +38,7 @@ void ClearContainer(T& container)
 	std::swap(container, emptyContainer);
 }
 
-void ClearQueue(BufferQueue* pQueue, bool bDelete = false);
+void ClearQueue(AllocBufferQueue* pQueue, bool bDelete = false);
 
 StringArray Split(const CString& str, char sep = ';');
 
@@ -51,9 +51,13 @@ bool EnsureDirectoryExists(const char* dir);
 // Returns true if a call stack contains one or more frames
 bool ContainsFrame(const CallStackInfo& stack, std::vector<CString>& filter);
 
+bool CopyTextToClipboard(CWnd* pWnd, const CString& text);
+
+CString EscapeXmlString(const CString& input);
+
 // Returns a string showing the input numeric value.
 template<typename T>
-CString NumberToText(T value) 
+CString NumberToText(T value)
 {
 	static_assert(std::is_arithmetic_v<T>, "NumberToText requires a numeric type.");
 
@@ -61,12 +65,12 @@ CString NumberToText(T value)
 
 	if constexpr (std::is_integral_v<T>) {
 		if constexpr (std::is_unsigned_v<T>)
-			result.Format(_T("%llu"), static_cast<unsigned long long>(value));		
+			result.Format("%llu", static_cast<unsigned long long>(value));
 		else
-			result.Format(_T("%lld"), static_cast<long long>(value));		
+			result.Format("%lld", static_cast<long long>(value));
 	}
 	else if constexpr (std::is_floating_point_v<T>)
-		result.Format(_T("%f"), static_cast<double>(value));	
+		result.Format("%f", static_cast<double>(value));
 	return result;
 }
 
@@ -95,11 +99,13 @@ public:
 	void SetTimeout(DWORD timeout) { m_timeout = timeout; }
 
 	void Stop()
-	{		
+	{
 		if (m_thread.joinable())
+		{
+			Trace("Thread::Stop-> thread: %s", m_threadName.GetString());
 			m_thread.join();
-		Trace("Thread::Stop-> thread: %s", m_threadName.GetString());
-		m_thread = std::thread();		
+		}
+		m_thread = std::thread();
 	}
 
 	// Responsive stop.
@@ -117,7 +123,7 @@ public:
 			m_thread = std::thread();
 		}
 		return reason;
-	}	
+	}
 
 	HANDLE GetHandle() { return static_cast<HANDLE>(m_thread.native_handle()); }
 	DWORD  GetThreadId() { GetThreadId(GetHandle()); }
@@ -134,17 +140,15 @@ protected:
 class Logger
 {
 public:
-	Logger() { m_file = nullptr; };	
+	Logger() { m_file = nullptr; };
 	~Logger();
 
 	bool Open(const CString& fileFullath);
 	void Close();
-	void Log(const char* pwsText, ...);	
+	void Log(const char* pwsText, ...);
 
 protected:
 	CString GetLogDirectory();
-
-protected:		
 	FILE* m_file{};
 };
 
@@ -158,7 +162,7 @@ public:
 protected:
 	std::vector<std::pair<DWORD, size_t>> m_sizeList;
 	DWORD m_lastTime{ 0 }, m_startTime{ 0 };
-	bool m_bFirstTime{ true };	
+	bool m_bFirstTime{ true };
 };
 
 
@@ -169,8 +173,8 @@ public:
 	void  StartCounter();
 	DWORD GetElapsedMicrosec();
 	DWORD GetElapsedMillisec();
-protected:
 
+protected:
 	LARGE_INTEGER m_startingTime{}, m_endingTime{}, m_elapsed{};
 	LARGE_INTEGER m_frequency{};
 };

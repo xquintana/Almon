@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "Almon.h"
 #include "DlgTreeView.h"
-#include "afxdialogex.h"
 #include "Utils.h"
 #include "DlgUtils.h"
 #include "DlgProgressBar.h"
@@ -9,141 +8,15 @@
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Node
-
-void Node::Insert(const CallStack& stack, size_t sizeLeaf, DWORD level, CString** pFrames)
-{
-	if (level == 0)
-	{
-		size = sizeLeaf;
-		return;
-	}
-	level--;
-	size += sizeLeaf;
-	UINT_PTR address = stack[level];
-	pFrame = pFrames[level];
-	nodes[address].Insert(stack, sizeLeaf, level, pFrames);
-}
-
-bool Node::PrintTXT(std::ofstream& file, ProgressBar* pProgress)
-{
-	std::vector<CString> items;
-	PrintTXT(items, -1, pProgress);
-
-	if (pProgress)
-		pProgress->SetLabel("Writing to file...");
-
-	for (auto& item : items)
-		if (!(file << item.GetString()))
-			return false;
-	return true;
-}
-
-void Node::PrintTXT(std::vector<CString>& items, int indent, ProgressBar* pProgress)
-{
-	if (nodes.empty())
-		return;
-	indent++;
-	for (auto& [address, node] : nodes)
-	{
-		char tab[128]{};
-		for (int i = 0; i < indent; i++)
-			strcat_s(tab, 128, "\t");
-		if (node.pFrame && node.pFrame->GetString())
-		{
-			sprintf_s(auxStr, auxStrMaxLen, "%s[-] %s [%zu]\n", tab, node.pFrame->GetString(), node.size);
-			items.push_back(auxStr);
-		}
-		else
-		{
-			sprintf_s(auxStr, auxStrMaxLen, "%s[-] address: 0x%p [%zu]\n", tab, (void*)address, node.size);
-			items.push_back(auxStr);
-		}
-		if (pProgress)
-			pProgress->Update((int)items.size());
-		node.PrintTXT(items, indent, pProgress);
-	}
-}
-
-bool Node::PrintXML(std::ofstream& file, ProgressBar* pProgress)
-{
-	std::vector<CString> items;
-	PrintXML(items, -1, pProgress);
-
-	if (pProgress)
-		pProgress->SetLabel("Writing to file...");
-
-	for (auto& item : items)
-		if (!(file << item.GetString()))
-			return false;
-	return true;
-}
-
-void Node::PrintXML(std::vector<CString>& items, int indent, ProgressBar* pProgress)
-{
-	if (nodes.empty())
-		return;
-	indent++;
-	for (auto& [address, node] : nodes)
-	{
-		char tab[128]{};
-		for (int i = 0; i < indent; i++)
-			strcat_s(tab, 128, "\t");
-		if (node.pFrame && node.pFrame->GetString())
-		{
-			sprintf_s(auxStr, auxStrMaxLen, "%s<Item size=\"%zu\" frame=\"%s\" %s\n", tab, node.size, node.pFrame->GetString(), (node.nodes.size() > 0) ? ">" : "/>");
-			items.push_back(auxStr);
-		}
-		else
-		{
-			sprintf_s(auxStr, auxStrMaxLen, "%s<Item size=\"%zu\" address=\"0x%p\" %s\n", tab, node.size, (void*)address, (node.nodes.size() > 0) ? ">" : "/>");
-			items.push_back(auxStr);
-		}
-		if (pProgress)
-			pProgress->Update((int)items.size());
-		node.PrintXML(items, indent, pProgress);
-
-		if (node.nodes.size() > 0)
-		{
-			sprintf_s(auxStr, auxStrMaxLen, "%s</Item>\n", tab);
-			items.push_back(auxStr);
-		}
-	}
-}
-
-void Node::Draw(CTreeCtrl& control, int level, HTREEITEM hParent)
-{
-	if (nodes.empty())
-		return;
-	level++;
-	for (auto& [address, node] : nodes)
-	{
-		if (node.pFrame)
-		{
-			sprintf_s(auxStr, auxStrMaxLen, "%s [%zu]\n", node.pFrame->GetString(), node.size);
-			HTREEITEM hItem = control.InsertItem(auxStr, hParent);
-			if (level < 3)
-				control.Expand(hParent, TVE_EXPAND);
-
-			node.Draw(control, level, hItem);
-		}
-	}
-}
-
-void Node::Clear()
-{
-	for (auto& [address, node] : nodes)
-		node.Clear();
-	nodes.clear();
-	pFrame = nullptr;
-	size = 0;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DlgTreeView
 
 IMPLEMENT_DYNAMIC(DlgTreeView, CDialogEx)
+
+BEGIN_MESSAGE_MAP(DlgTreeView, CDialogEx)
+	ON_WM_SIZE()
+	ON_BN_CLICKED(IDC_BUTTON_SHOW_FILTER, &DlgTreeView::OnBnClickedButtonShowFilter)
+	ON_BN_CLICKED(IDC_BUTTON_EXPORT, &DlgTreeView::OnBnClickedButtonExport)
+END_MESSAGE_MAP()
 
 DlgTreeView::DlgTreeView(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_TREEVIEW, pParent), DlgUtils(this)
@@ -154,26 +27,19 @@ DlgTreeView::DlgTreeView(CWnd* pParent /*=nullptr*/)
 void DlgTreeView::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
-	DDX_Control(pDX, IDC_TREE_CTL, m_treeCtrl);
 }
-
-
-BEGIN_MESSAGE_MAP(DlgTreeView, CDialogEx)
-	ON_WM_SIZE()
-	ON_BN_CLICKED(IDC_BUTTON_SHOW_FILTER, &DlgTreeView::OnBnClickedButtonShowFilter)
-	ON_BN_CLICKED(IDC_BUTTON_EXPORT, &DlgTreeView::OnBnClickedButtonExport)
-END_MESSAGE_MAP()
-
 
 BOOL DlgTreeView::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
+	m_treeView.SetFont(GetDialogFontName());
+	m_treeView.Attach(IDC_TREE_CTL, this);
 	return TRUE;
 }
 
-void DlgTreeView::SetInfo(CallStackMap* pCallstackMap, ProgressBar* pProgressBar)
+void DlgTreeView::SetInfo(CallStackMap* pCallStackMap, ProgressBar* pProgressBar)
 {
-	m_pCallstackMap = pCallstackMap;
+	m_pCallStackMap = pCallStackMap;
 	UpdateTree(pProgressBar);
 }
 
@@ -188,45 +54,44 @@ void DlgTreeView::UpdateTree(ProgressBar* pProgressBar)
 	StringArray& excludeFrames = m_filterDlg.excludeFrames;
 	bool bFilterInclude = !includeFrames.empty();
 	bool bFilterExclude = !excludeFrames.empty();
-	
-	ULONGLONG lastUpdateTime = 0;
+
 	int idx = 0;
 
 	if (pProgressBar)
 	{
-		pProgressBar->SetRange((int)m_pCallstackMap->size());
+		pProgressBar->SetRange((int)m_pCallStackMap->size());
 		pProgressBar->SetLabel("Initializing tree view...");
 	}
 
 	if (bFilterInclude || bFilterExclude)
 	{
-		for (auto& [callstack, info] : *m_pCallstackMap)
+		for (auto& [callStack, info] : *m_pCallStackMap)
 		{
 			if (bFilterInclude && !ContainsFrame(info, includeFrames))
 				continue;
 			if (bFilterExclude && ContainsFrame(info, excludeFrames))
 				continue;
 
-			m_tree.nodes[callstack[info.numFrames - 1]].Insert(callstack, info.numBytes, info.numFrames, info.frames);			
+			m_tree.nodes[callStack[info.numFrames - 1]].Insert(callStack, info.numBytes, info.numFrames, info.frames);
 			if (pProgressBar) { pProgressBar->Update(++idx); }
 		}
 	}
 	else
 	{
-		for (auto& [callstack, info] : *m_pCallstackMap)
+		for (auto& [callStack, info] : *m_pCallStackMap)
 		{
-			m_tree.nodes[callstack[info.numFrames - 1]].Insert(callstack, info.numBytes, info.numFrames, info.frames);			
+			m_tree.nodes[callStack[info.numFrames - 1]].Insert(callStack, info.numBytes, info.numFrames, info.frames);
 			if (pProgressBar) { pProgressBar->Update(++idx); }
-		}			
+		}
 	}
 
-	m_treeCtrl.DeleteAllItems();
+	// Sort the entire tree by accumulated size (descending).
+	m_tree.Sort();
 
 	if (pProgressBar)
 		pProgressBar->SetLabel("Rendering tree...");
 
-	HTREEITEM hRoot = m_treeCtrl.InsertItem("Root", TVI_ROOT);
-	m_tree.Draw(m_treeCtrl, 0, hRoot);
+	m_treeView.SetModel(&m_tree);
 }
 
 void DlgTreeView::OnSize(UINT nType, int cx, int cy)
@@ -240,6 +105,8 @@ void DlgTreeView::OnSize(UINT nType, int cx, int cy)
 		CRect rcBtnFilter = MoveControl(IDC_BUTTON_SHOW_FILTER, CALCULATE, NO_MOVE, rcClient.bottom - 20, NO_MOVE);
 		MoveControl(IDC_BUTTON_EXPORT, rcBtnFilter.top, NO_MOVE, rcBtnFilter.bottom, NO_MOVE);
 		MoveControl(IDC_TREE_CTL, NO_MOVE, NO_MOVE, rcBtnFilter.top - 10, rcClient.right - 20);
+
+		m_treeView.RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_FRAME);
 	}
 }
 
@@ -262,7 +129,7 @@ bool DlgTreeView::IsFormatSupported(ExporterBase::Format fmt)
 
 int DlgTreeView::GetNumExportItems()
 {
-	return m_treeCtrl.GetCount() - 1; // Do not count the Root node.
+	return m_tree.Count();
 }
 
 bool DlgTreeView::ExportTXT(std::ofstream& file, ProgressBar* pProgress)

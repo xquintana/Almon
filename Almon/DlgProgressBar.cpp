@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "Almon.h"
 #include "DlgProgressBar.h"
-#include "afxdialogex.h"
 #include "Utils.h"
 
 
@@ -10,11 +9,12 @@
 
 IMPLEMENT_DYNAMIC(DlgProgressBar, CDialogEx)
 
-DlgProgressBar::DlgProgressBar(CWnd* pParent /*=nullptr*/)
-	: CDialogEx(IDD_PROGRESS_BAR, pParent) {}
+BEGIN_MESSAGE_MAP(DlgProgressBar, CDialogEx)
+	ON_BN_CLICKED(IDCANCEL, &DlgProgressBar::OnBnClickedCancel)
+END_MESSAGE_MAP()
 
-DlgProgressBar::~DlgProgressBar()
-{
+DlgProgressBar::DlgProgressBar(CWnd* pParent /*=nullptr*/)
+	: CDialogEx(IDD_PROGRESS_BAR, pParent), DlgUtils(this) {
 }
 
 void DlgProgressBar::DoDataExchange(CDataExchange* pDX)
@@ -22,14 +22,6 @@ void DlgProgressBar::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_PROGRESS, m_ProgressCtrl);
 }
-
-
-BEGIN_MESSAGE_MAP(DlgProgressBar, CDialogEx)
-	ON_BN_CLICKED(IDCANCEL, &DlgProgressBar::OnBnClickedCancel)
-END_MESSAGE_MAP()
-
-
-// DlgProgressBar message handlers
 
 BOOL DlgProgressBar::OnInitDialog()
 {
@@ -58,24 +50,24 @@ void DlgProgressBar::SetTitle(const CString& title)
 
 void DlgProgressBar::SetLabel(const CString& label)
 {
-	GetDlgItem(IDC_LABEL)->SetWindowText(label);
+	SetControlText(IDC_LABEL, label);
 	ProcessWinMessages();
 }
 
 void DlgProgressBar::SetText(const CString& text)
 {
-	GetDlgItem(IDC_STATIC_TEXT)->SetWindowText(text);
+	SetControlText(IDC_STATIC_TEXT, text);
 	ProcessWinMessages();
 }
 
 void DlgProgressBar::EnableCancel(bool bEnableCancel)
 {
-	GetDlgItem(IDCANCEL)->ShowWindow(bEnableCancel);
+	ShowControl(IDCANCEL, bEnableCancel);
 	ProcessWinMessages();
 }
 
 void DlgProgressBar::Increment()
-{	
+{
 	m_ProgressCtrl.SetPos(m_ProgressCtrl.GetPos() + 1);
 	ProcessWinMessages();
 }
@@ -93,8 +85,9 @@ void DlgProgressBar::SetMarqueeMode(bool bEnable)
 /////////////////////////////////////////////////////////////////////////////
 // ProgressBar
 
-ProgressBar::ProgressBar(CWnd* pParent, const CString& label, const CString& title, int max)
-{	
+ProgressBar::ProgressBar(CWnd* pParent, const CString& label, const CString& title, int max) :
+	m_pParent(pParent), m_max(max)
+{
 	Create(pParent);
 	SetTitle(title);
 	SetLabel(label);
@@ -107,37 +100,45 @@ ProgressBar::ProgressBar(CWnd* pParent, const CString& label, const CString& tit
 void ProgressBar::Create(CWnd* pParent)
 {
 	m_dlg.Create(IDD_PROGRESS_BAR, pParent);
+	m_pParent = pParent;
 }
 
 void ProgressBar::Show(bool bEnableCancel)
 {
 	m_dlg.EnableCancel(bEnableCancel);
-	m_dlg.ShowWindow(TRUE);
+	m_dlg.ShowWindow(SW_SHOW);
+	m_dlg.SetActiveWindow();
+	if (m_pParent) m_pParent->EnableWindow(FALSE);
 }
 
 void ProgressBar::Hide()
 {
-	m_dlg.ShowWindow(FALSE);	
+	if (m_pParent)
+	{
+		m_pParent->EnableWindow(TRUE);
+		m_pParent->SetActiveWindow();
+	}
+	m_dlg.ShowWindow(SW_HIDE);
 }
 
 void ProgressBar::SetPos(int pos)
 {
-	if ((GetTickCount64() - m_timeLastUpdated) > m_updatePeriod)
-	{
-		m_timeLastUpdated = GetTickCount64();
-		m_dlg.SetPos(pos > m_max ? m_max : pos);
-		ProcessWinMessages();
-	}
+	m_dlg.SetPos(pos > m_max ? m_max : pos);
+	ProcessWinMessages();
 }
 
 bool ProgressBar::Update(int pos)
 {
-	if (IsCancelled())
-		return false;
+	if ((GetTicks() - m_timeLastUpdated) > m_updatePeriod)
+	{
+		m_timeLastUpdated = GetTicks();
 
-	if (m_progressStep == 0 || pos % m_progressStep)
-		SetPos(pos);
+		if (IsCancelled())
+			return false;
 
+		if (m_progressStep == 0 || pos % m_progressStep)
+			SetPos(pos);
+	}
 	return true;
 }
 

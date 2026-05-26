@@ -1,16 +1,19 @@
 #pragma once
 
+#include "DlgUtils.h"
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // DlgProgressBar
-// A dialog containing a progress bar.
+// A dialog containing a progress bar with a cancellation button.
 
-class DlgProgressBar : public CDialogEx
+class DlgProgressBar :
+	public CDialogEx,
+	public DlgUtils
 {
 	DECLARE_DYNAMIC(DlgProgressBar)
 
 public:
-	DlgProgressBar(CWnd* pParent = nullptr);   // standard constructor
-	virtual ~DlgProgressBar();
+	DlgProgressBar(CWnd* pParent = nullptr);
 
 	void SetRange(int max) { SetMarqueeMode(max == 0); m_ProgressCtrl.SetRange(0, max); }
 	void SetPos(int pos) { m_ProgressCtrl.SetPos(pos); }
@@ -32,12 +35,11 @@ protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 
 	DECLARE_MESSAGE_MAP()
-	CProgressCtrl m_ProgressCtrl;
+	afx_msg void OnBnClickedCancel();
 
 protected:
+	CProgressCtrl m_ProgressCtrl;
 	bool m_bCancelled{};
-public:
-	afx_msg void OnBnClickedCancel();
 };
 
 
@@ -67,8 +69,9 @@ public:
 
 protected:
 	DlgProgressBar m_dlg;
+	CWnd* m_pParent{};
 	int m_max{};
 	int m_progressStep{};
-	ULONGLONG m_timeLastUpdated{};
-	const ULONGLONG m_updatePeriod{ 200 }; //ms
+	DWORD m_timeLastUpdated{};
+	const DWORD m_updatePeriod{ 200 }; //ms
 };

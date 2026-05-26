@@ -3,9 +3,9 @@
 #include <dbghelp.h>
 
 
-using PtrMalloc = void * (__cdecl *)(size_t);
-using PtrFree = void(__cdecl *)(void *);
-using PtrFreeDbg = void(__cdecl *)(void *, int);
+using PtrMalloc = void* (__cdecl*)(size_t);
+using PtrFree = void(__cdecl*)(void*);
+using PtrFreeDbg = void(__cdecl*)(void*, int);
 
 // Hook tables. (Lots of static data, but it's the only way to do this.)
 const int numHooks = 128;
@@ -20,8 +20,7 @@ PtrMalloc originalMallocs[numHooks];
 PtrFree originalFrees[numHooks];
 PtrFreeDbg originalFreeDbgs[numHooks];
 
-
-HeapProfiler *heapProfiler;
+HeapProfiler* heapProfiler;
 
 
 // Mechanism to stop us profiling ourself.
@@ -44,27 +43,27 @@ void* __cdecl mallocHook(size_t size)
 	PreventSelfProfile preventSelfProfile;
 	void* p = originalMallocs[N](size);
 	if (preventSelfProfile.shouldProfile())
-		heapProfiler->malloc(p, size);	
+		heapProfiler->malloc(p, size);
 	return p;
 }
 
 // Free hook function.
 template <int N>
-void  __cdecl freeHook(void * p)
+void  __cdecl freeHook(void* p)
 {
 	PreventSelfProfile preventSelfProfile;
 	originalFrees[N](p);
-	if (preventSelfProfile.shouldProfile())	
-		heapProfiler->free(p);	
+	if (preventSelfProfile.shouldProfile())
+		heapProfiler->free(p);
 }
 
 // Debug Free hook function.
 template <int N>
-void  __cdecl freeDbgHook(void * p, int block_use)
+void  __cdecl freeDbgHook(void* p, int block_use)
 {
 	PreventSelfProfile preventSelfProfile;
 	originalFreeDbgs[N](p, block_use);
-	if (preventSelfProfile.shouldProfile())		
+	if (preventSelfProfile.shouldProfile())
 		heapProfiler->free(p);
 }
 
@@ -94,7 +93,7 @@ BOOL CALLBACK EnumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 	std::lock_guard<std::mutex> lk(hookTableMutex);
 	PreventSelfProfile preventSelfProfile;
 
-	PCSTR moduleName = (PCSTR)userContext;	
+	PCSTR moduleName = (PCSTR)userContext;
 
 	// Hook mallocs.
 	if (strcmp(symbolInfo->Name, "malloc") == 0)
@@ -105,7 +104,7 @@ BOOL CALLBACK EnumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 			return true;
 		}
 		Trace("HeapyInject::EnumSymbolsCallback-> Hooking malloc from module '%s' into malloc hook num %d.", moduleName, nUsedMallocHooks);
-		if (MH_CreateHook((void*)symbolInfo->Address, mallocHooks[nUsedMallocHooks], (void **)&originalMallocs[nUsedMallocHooks]) == MH_OK)
+		if (MH_CreateHook((void*)symbolInfo->Address, mallocHooks[nUsedMallocHooks], (void**)&originalMallocs[nUsedMallocHooks]) == MH_OK)
 		{
 			if (MH_EnableHook((void*)symbolInfo->Address) == MH_OK)
 				nUsedMallocHooks++;
@@ -125,7 +124,7 @@ BOOL CALLBACK EnumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 			return true;
 		}
 		Trace("HeapyInject::EnumSymbolsCallback-> Hooking free from module '%s' into free hook num %d.", moduleName, nUsedFreeHooks);
-		if (MH_CreateHook((void*)symbolInfo->Address, freeHooks[nUsedFreeHooks], (void **)&originalFrees[nUsedFreeHooks]) == MH_OK)
+		if (MH_CreateHook((void*)symbolInfo->Address, freeHooks[nUsedFreeHooks], (void**)&originalFrees[nUsedFreeHooks]) == MH_OK)
 		{
 			if (MH_EnableHook((void*)symbolInfo->Address) == MH_OK)
 				nUsedFreeHooks++;
@@ -145,7 +144,7 @@ BOOL CALLBACK EnumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 			return true;
 		}
 		Trace("HeapyInject::EnumSymbolsCallback-> Hooking debug free from module '%s' into debug free hook num %d.", moduleName, nUsedFreeDbgHooks);
-		if (MH_CreateHook((void*)symbolInfo->Address, freeDbgHooks[nUsedFreeDbgHooks], (void **)&originalFreeDbgs[nUsedFreeDbgHooks]) == MH_OK)
+		if (MH_CreateHook((void*)symbolInfo->Address, freeDbgHooks[nUsedFreeDbgHooks], (void**)&originalFreeDbgs[nUsedFreeDbgHooks]) == MH_OK)
 		{
 			if (MH_EnableHook((void*)symbolInfo->Address) == MH_OK)
 				nUsedFreeDbgHooks++;
@@ -183,16 +182,16 @@ void ChangeCurrentDirectory()
 		_splitpath_s(dirProc, drive, _MAX_DRIVE, dir, _MAX_DIR, fname, _MAX_FNAME, ext, _MAX_EXT);
 		_makepath_s(dirProc, MAX_PATH, drive, dir, nullptr, nullptr);
 		SetCurrentDirectory(dirProc);
-	}	
+	}
 }
 
 bool SetupHeapProfiling()
 {
 	Trace("HeapyInject::SetupHeapProfiling-> Injecting library...\n");
-	
+
 	// The current directory of the target process is set to the profiler directory by default.
 	// Change it to the directory of the target executable.
-	ChangeCurrentDirectory();	
+	ChangeCurrentDirectory();
 
 	nUsedMallocHooks = 0;
 	nUsedFreeHooks = 0;
@@ -219,7 +218,7 @@ bool SetupHeapProfiling()
 	return heapProfiler->Init();
 }
 
-int LockLibraryIntoProcessMem(HMODULE DllHandle, HMODULE *LocalDllHandle)
+int LockLibraryIntoProcessMem(HMODULE DllHandle, HMODULE* LocalDllHandle)
 {
 	if (NULL == LocalDllHandle)
 		return ERROR_INVALID_PARAMETER;
@@ -264,7 +263,7 @@ extern "C" {
 				}
 				else
 					Trace("HeapyInject-> LockLibraryIntoProcessMem failed. Last error: %d", code);
-			}		
+			}
 			else
 				Trace("HeapyInject-> Failed to setup the profiler");
 			break;

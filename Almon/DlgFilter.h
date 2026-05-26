@@ -15,40 +15,38 @@ class DlgFilter :
 	DECLARE_DYNAMIC(DlgFilter)
 
 public:
-	DlgFilter(CWnd* pParent = nullptr);	
+	DlgFilter(CWnd* pParent = nullptr);
+
+	void SetTreeViewMode() { m_bTreeViewMode = true; };
 
 	BOOL PreTranslateMessage(MSG* pMsg);
-	
+
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_FILTER };
 #endif
 
 protected:
-	virtual BOOL OnInitDialog();
-
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support	
-
-	DECLARE_MESSAGE_MAP()
-
 	void InitDefaultValues();
 	void EnableTreeViewMode();
 	UINT64 GetEditValue(int nIdControl); // Returns the value in an CEditBox, or ULLONG_MAX if the value is invalid.	
 	RangeU64 GetValueRange(int nIdChkMin, int nIdEditMin, int nIdChkMax, int nIdEditMax);
 	StringArray GetFilterFrames(int nCheckID, int nEditID);
 
-public:
+	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+
+	virtual BOOL OnInitDialog();
+
+	DECLARE_MESSAGE_MAP()
 	afx_msg void OnBnClickedOk();
 	afx_msg void UpdateControls();
 	afx_msg void OnComboSelChange();
 	afx_msg void OnComboSetFocus();
 
-public:
-	void SetTreeViewMode() { m_bTreeView = true; };
-
-public:
-	StringArray includeFrames, excludeFrames;
-	RangeU64 rangeSize, rangeAllocs, rangeUse;
-
 protected:
-	bool m_bTreeView;
+	bool m_bTreeViewMode{}; // If true, the layout shows the controls required for the tree view.
+	StringArray includeFrames, excludeFrames;
+	RangeU64 rangeSize, rangeNumAllocs, rangeUse;
+
+	friend class DlgListView;
+	friend class DlgTreeView;
 };

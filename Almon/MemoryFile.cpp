@@ -6,23 +6,6 @@ MemoryFile::~MemoryFile()
 	CloseMemFile();
 }
 
-void MemoryFile::CloseMemFile()
-{
-	if (m_pBuffer != nullptr)
-		UnmapViewOfFile(m_pBuffer);
-	if (m_hMapFile != INVALID_HANDLE_VALUE)
-		CloseHandle(m_hMapFile);
-	if (m_hBufferReady != INVALID_HANDLE_VALUE)
-		CloseHandle(m_hBufferReady);
-	if (m_hBufferProcessed != INVALID_HANDLE_VALUE)
-		CloseHandle(m_hBufferProcessed);
-
-	m_pBuffer = nullptr;
-	m_hMapFile = INVALID_HANDLE_VALUE;
-	m_hBufferReady = INVALID_HANDLE_VALUE;
-	m_hBufferProcessed = INVALID_HANDLE_VALUE;
-}
-
 void MemoryFile::BuildNames(LPCSTR baseName)
 {
 	// Cannot use "Global\\" because don't have SeCreateGlobalPrivilege. May not work in Remote Desktop. 
@@ -87,7 +70,7 @@ bool MemoryFile::CreateMemFile(DWORD bufferSize, LPCSTR name)
 }
 
 bool MemoryFile::OpenMemFile(DWORD bufferSize, LPCSTR name)
-{	
+{
 	m_bufferSize = bufferSize;
 
 	BuildNames(name);
@@ -135,7 +118,24 @@ bool MemoryFile::OpenMemFile(DWORD bufferSize, LPCSTR name)
 	return true;
 }
 
-void MemoryFile::WriteBufferWithCounter(void* pBuffer, size_t bufferLen) // Especial para enviar alloc/free
+void MemoryFile::CloseMemFile()
+{
+	if (m_pBuffer != nullptr)
+		UnmapViewOfFile(m_pBuffer);
+	if (m_hMapFile != INVALID_HANDLE_VALUE)
+		CloseHandle(m_hMapFile);
+	if (m_hBufferReady != INVALID_HANDLE_VALUE)
+		CloseHandle(m_hBufferReady);
+	if (m_hBufferProcessed != INVALID_HANDLE_VALUE)
+		CloseHandle(m_hBufferProcessed);
+
+	m_pBuffer = nullptr;
+	m_hMapFile = INVALID_HANDLE_VALUE;
+	m_hBufferReady = INVALID_HANDLE_VALUE;
+	m_hBufferProcessed = INVALID_HANDLE_VALUE;
+}
+
+void MemoryFile::WriteBufferWithCounter(void* pBuffer, size_t bufferLen) // Sends alloc/free information
 {
 	CopyMemory(m_pBuffer, &m_bufferCounter, sizeof(DWORD));
 	DWORD offset = sizeof(DWORD);

@@ -1,0 +1,72 @@
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	new file:   .editorconfig
+	new file:   Almon/AllocTimeView.cpp
+	new file:   Almon/AllocTimeView.h
+	modified:   Almon/Almon.cpp
+	modified:   Almon/Almon.h
+	modified:   Almon/Almon.rc
+	modified:   Almon/Almon.vcxproj
+	modified:   Almon/Almon.vcxproj.filters
+	new file:   Almon/BaseView.cpp
+	new file:   Almon/BaseView.h
+	deleted:    Almon/Canvas.cpp
+	deleted:    Almon/Canvas.h
+	modified:   Almon/CommonDefs.h
+	modified:   Almon/DlgAlmon.cpp
+	modified:   Almon/DlgAlmon.h
+	modified:   Almon/DlgFilter.cpp
+	modified:   Almon/DlgFilter.h
+	deleted:    Almon/DlgInternalStats.cpp
+	modified:   Almon/DlgListView.cpp
+	modified:   Almon/DlgListView.h
+	new file:   Almon/DlgMetrics.cpp
+	renamed:    Almon/DlgInternalStats.h -> Almon/DlgMetrics.h
+	modified:   Almon/DlgProgressBar.cpp
+	modified:   Almon/DlgProgressBar.h
+	modified:   Almon/DlgRealTime.cpp
+	modified:   Almon/DlgRealTime.h
+	modified:   Almon/DlgTreeView.cpp
+	modified:   Almon/DlgTreeView.h
+	modified:   Almon/DlgUtils.cpp
+	modified:   Almon/DlgUtils.h
+	new file:   Almon/ListView.cpp
+	new file:   Almon/ListView.h
+	modified:   Almon/MemoryFile.cpp
+	modified:   Almon/Monitor.cpp
+	modified:   Almon/Monitor.h
+	new file:   Almon/ScrollableView.cpp
+	new file:   Almon/ScrollableView.h
+	new file:   Almon/StackView.cpp
+	new file:   Almon/StackView.h
+	new file:   Almon/TextView.cpp
+	new file:   Almon/TextView.h
+	modified:   Almon/TopStacks.cpp
+	modified:   Almon/TopStacks.h
+	new file:   Almon/TopStacksView.cpp
+	new file:   Almon/TopStacksView.h
+	new file:   Almon/TreeView.cpp
+	new file:   Almon/TreeView.h
+	modified:   Almon/Utils.cpp
+	modified:   Almon/Utils.h
+	modified:   Almon/res/Play.ico
+	renamed:    Almon/res/icon1.ico -> Almon/res/Selected.ico
+	modified:   Almon/res/Stop.ico
+	modified:   Almon/resource.h
+	modified:   Almon/stdafx.cpp
+	modified:   Almon/stdafx.h
+	modified:   Almon/targetver.h
+	modified:   AlmonTester/AlmonTester.cpp
+	modified:   AlmonTester/stdafx.h
+	modified:   HeapyInject/HeapProfiler.cpp
+	modified:   HeapyInject/HeapProfiler.h
+	modified:   HeapyInject/HeapyInject.cpp
+	new file:   HeapyInject/LICENSE.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	out.txt
+

@@ -193,33 +193,42 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Canvas.h" />
+    <ClInclude Include="AllocTimeView.h" />
+    <ClInclude Include="BaseView.h" />
     <ClInclude Include="DlgUtils.h" />
     <ClInclude Include="DlgTreeView.h" />
     <ClInclude Include="DlgFilter.h" />
     <ClInclude Include="DlgProgressBar.h" />
     <ClInclude Include="DlgRealTime.h" />
-    <ClInclude Include="DlgInternalStats.h" />
+    <ClInclude Include="DlgMetrics.h" />
     <ClInclude Include="CommonDefs.h" />
     <ClInclude Include="Almon.h" />
     <ClInclude Include="DlgAlmon.h" />
+    <ClInclude Include="ListView.h" />
     <ClInclude Include="Monitor.h" />
     <ClInclude Include="MemoryFile.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="DlgListView.h" />
+    <ClInclude Include="ScrollableView.h" />
+    <ClInclude Include="StackView.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="TextView.h" />
     <ClInclude Include="TopStacks.h" />
+    <ClInclude Include="TopStacksView.h" />
+    <ClInclude Include="TreeView.h" />
     <ClInclude Include="Utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Canvas.cpp" />
+    <ClCompile Include="AllocTimeView.cpp" />
+    <ClCompile Include="BaseView.cpp" />
     <ClCompile Include="DlgUtils.cpp" />
-    <ClCompile Include="DlgInternalStats.cpp" />
+    <ClCompile Include="DlgMetrics.cpp" />
     <ClCompile Include="DlgTreeView.cpp" />
     <ClCompile Include="DlgFilter.cpp" />
     <ClCompile Include="Almon.cpp" />
     <ClCompile Include="DlgAlmon.cpp" />
+    <ClCompile Include="ListView.cpp" />
     <ClCompile Include="Monitor.cpp" />
     <ClCompile Include="MemoryFile.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -229,15 +238,20 @@
     <ClCompile Include="DlgProgressBar.cpp" />
     <ClCompile Include="DlgRealTime.cpp" />
     <ClCompile Include="DlgListView.cpp" />
+    <ClCompile Include="ScrollableView.cpp" />
+    <ClCompile Include="StackView.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="TextView.cpp" />
     <ClCompile Include="TopStacks.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="TopStacksView.cpp" />
+    <ClCompile Include="TreeView.cpp" />
     <ClCompile Include="Utils.cpp" />
   </ItemGroup>
   <ItemGroup>

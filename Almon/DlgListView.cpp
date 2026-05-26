@@ -1,109 +1,62 @@
 #include "stdafx.h"
 #include "Almon.h"
 #include "DlgListView.h"
-#include "afxdialogex.h"
-#include "Utils.h"
 #include "DlgProgressBar.h"
-#include <cctype>
 #include <fstream>
 
 
-static DlgListView::Column st_sortColumn = DlgListView::Column::Bytes;
-static bool st_bSortAsc = false;
-
 IMPLEMENT_DYNAMIC(DlgListView, CDialogEx)
+
 BEGIN_MESSAGE_MAP(DlgListView, CDialogEx)
 	ON_WM_SIZE()
 	ON_WM_CTLCOLOR()
-	ON_NOTIFY(LVN_ITEMCHANGED, IDC_CALLSTACK_LIST, &DlgListView::OnLvnItemchangedCallstackList)
-	ON_NOTIFY(LVN_COLUMNCLICK, IDC_CALLSTACK_LIST, OnColumnClick)
-	ON_BN_CLICKED(IDC_BUTTON_APPLY_FILTER, &DlgListView::OnBnClickedButtonApplyFilter)
+	ON_BN_CLICKED(IDC_BUTTON_SHOW_FILTER, &DlgListView::OnBnClickedButtonShowFilter)
 	ON_BN_CLICKED(IDC_BUTTON_EXPORT, &DlgListView::OnBnClickedButtonExport)
+	ON_MESSAGE(WM_LISTVIEW_ROW_CLICKED, &DlgListView::OnListViewRowClicked)
+	ON_MESSAGE(WM_LISTVIEW_HEADER_CLICKED, &DlgListView::OnListViewHeaderClicked)
 END_MESSAGE_MAP()
 
 DlgListView::DlgListView(CWnd* pParent /*=nullptr*/)
-	: CDialogEx(IDD_LISTVIEW, pParent), DlgUtils(this)
-{
-	m_pCallstackMap = nullptr;
-}
-
-DlgListView::~DlgListView()
-{
+	: CDialogEx(IDD_LISTVIEW, pParent), DlgUtils(this) {
 }
 
 void DlgListView::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
-	DDX_Control(pDX, IDC_CALLSTACK_LIST, m_listCtrl);
 }
-
 
 BOOL DlgListView::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
-	SetColumns();
-	m_listCtrl.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	m_listView.SetFont(GetDialogFontName());
+	m_textView.SetFont(GetDialogFontName());
+	m_listView.Attach(IDC_CALLSTACK_LIST, this);
+	m_textView.Attach(IDC_CALLSTACK_TEXT, this);
 	return TRUE;
 }
 
 HBRUSH DlgListView::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
 	UNUSED_ALWAYS(nCtlColor);
-	if (pWnd->GetDlgCtrlID() == IDC_EDIT_CALLSTACK)
+	if (pWnd->GetDlgCtrlID() == IDC_CALLSTACK_TEXT)
 		return (HBRUSH)GetStockObject(WHITE_BRUSH);
 	return CDialogEx::OnCtlColor(pDC, pWnd, nCtlColor);
 }
 
-void DlgListView::SetColumns()
+bool DlgListView::SetInfo(CallStackMap* pCallStackMap, ProgressBar* pProgressBar)
 {
-	m_listCtrl.InsertColumn(static_cast<int>(DlgListView::Column::Allocs), "Num Allocs", LVCFMT_RIGHT, 80);
-	m_listCtrl.InsertColumn(static_cast<int>(DlgListView::Column::Bytes), "Total Size (Bytes)", LVCFMT_RIGHT, 110);
-	m_listCtrl.InsertColumn(static_cast<int>(DlgListView::Column::Usage), "Bytes in Use", LVCFMT_RIGHT, 110);
-}
-
-bool DlgListView::SetInfo(CallStackMap* pCallstackMap, ProgressBar* pProgressBar)
-{
-	m_pCallstackMap = pCallstackMap;
+	m_pCallStackMap = pCallStackMap;
 
 	if (!UpdateList(pProgressBar))
 		return false;
-
-	SelectCallStack(0);
-	m_listCtrl.SetItemState(0, LVIS_SELECTED, LVIS_SELECTED);
-	m_listCtrl.SetSelectionMark(0);
 	return true;
 }
 
-int CompareValues(CListCtrl* pListCtrl, int param1, int param2, int colIdx)
+bool DlgListView::IsValueNotInRange(UINT64 value, UINT64 min, UINT64 max)
 {
-	CString item1 = pListCtrl->GetItemText(param1, colIdx);
-	CString item2 = pListCtrl->GetItemText(param2, colIdx);
-	int x1 = _tstoi(item1.GetBuffer());
-	int x2 = _tstoi(item2.GetBuffer());
-	int result{};
-	if ((x1 - x2) < 0) result = st_bSortAsc ? -1 : 1;
-	else if ((x1 - x2) == 0) result = 0;
-	else result = st_bSortAsc ? 1 : -1;
-	return result;
-}
-
-int CALLBACK ListCompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort)
-{
-	int param1 = static_cast<int>(lParam1);
-	int param2 = static_cast<int>(lParam2);
-	CListCtrl* pListCtrl = (CListCtrl*)lParamSort;
-	return CompareValues(pListCtrl, param1, param2, static_cast<int>(st_sortColumn));
-}
-
-void DlgListView::OnColumnClick(NMHDR* pNMHDR, LRESULT* pResult)
-{
-	CWaitCursor waitCursor;
-	NM_LISTVIEW* pNMListView = (NM_LISTVIEW*)pNMHDR;
-	st_sortColumn = static_cast<DlgListView::Column>(pNMListView->iSubItem);
-	st_bSortAsc = !st_bSortAsc;
-
-	m_listCtrl.SortItemsEx(ListCompareFunc, (LPARAM)&m_listCtrl);
-	*pResult = 0;
+	if (min == ULLONG_MAX && max == ULLONG_MAX)
+		return false;
+	return (max == ULLONG_MAX) ? value != min : (value < min || value > max);
 }
 
 bool DlgListView::UpdateList(ProgressBar* pProgressBar)
@@ -116,23 +69,26 @@ bool DlgListView::UpdateList(ProgressBar* pProgressBar)
 	bool bFilterInclude = !includeFrames.empty();
 	bool bFilterExclude = !excludeFrames.empty();
 	auto [nNumBytesMin, nNumBytesMax] = m_filterDlg.rangeSize;
-	auto [nNumAllocsMin, nNumAllocsMax] = m_filterDlg.rangeAllocs;
+	auto [nNumAllocsMin, nNumAllocsMax] = m_filterDlg.rangeNumAllocs;
 	auto [nNumBytesUseMin, nNumBytesUseMax] = m_filterDlg.rangeUse;
 
-	// Refresh the list view according to the filter parameters.
-	m_listCtrl.DeleteAllItems();
-	GetDlgItem(IDC_EDIT_CALLSTACK)->SetWindowText("");
+	// Refresh the list view according to the filter parameters.	
+	m_listView.Clear();
+	m_textView.Clear();
 
 	if (pProgressBar)
 	{
-		pProgressBar->SetRange((int)m_pCallstackMap->size());
+		pProgressBar->SetRange(static_cast<int>(m_pCallStackMap->size()));
 		pProgressBar->SetLabel("Initializing list view...");
 	}
 
 	int itemIdx{}, count{};
 	CString stackLabel, bytesLabel, numAllocsLabel, usageLabel;
+	auto& items = m_listView.GetItems();
 
-	for (const auto& [callStack, info] : *m_pCallstackMap)
+	items.reserve(m_pCallStackMap->size());
+
+	for (auto& [callStack, info] : *m_pCallStackMap)
 	{
 		if (bFilterInclude && !ContainsFrame(info, includeFrames))
 			continue;
@@ -145,15 +101,7 @@ bool DlgListView::UpdateList(ProgressBar* pProgressBar)
 		if (IsValueNotInRange(info.numBytesInUse, nNumBytesUseMin, nNumBytesUseMax))
 			continue;
 
-		bytesLabel.Format("%zu", info.numBytes);
-		numAllocsLabel.Format("%d", info.numAllocs);
-		usageLabel.Format("%zu", info.numBytesInUse);
-		itemIdx = m_listCtrl.InsertItem(m_listCtrl.GetItemCount(), stackLabel);
-
-		m_listCtrl.SetItemText(itemIdx, 0, numAllocsLabel);
-		m_listCtrl.SetItemText(itemIdx, 1, bytesLabel);
-		m_listCtrl.SetItemText(itemIdx, 2, usageLabel);
-		m_listCtrl.SetItemData(itemIdx, (DWORD_PTR)&info);
+		items.push_back(&info);
 
 		if (pProgressBar && !pProgressBar->Update(++count))
 		{
@@ -162,22 +110,22 @@ bool DlgListView::UpdateList(ProgressBar* pProgressBar)
 		}
 	}
 
-	if (pProgressBar)
+	if (m_listView.GetNumItems() > 0)
 	{
-		pProgressBar->Show(false); // Disable cancel.
-		pProgressBar->SetLabel("Sorting list...");
-	}
-
-	m_listCtrl.SortItemsEx(ListCompareFunc, (LPARAM)&m_listCtrl);
-
-	if (m_listCtrl.GetItemCount() > 0)
-	{
+		if (pProgressBar)
+		{
+			pProgressBar->Show(false); // Disable cancel.
+			pProgressBar->SetLabel("Sorting list...");
+		}
+		m_listView.SortByColumn(static_cast<int>(m_sortColumn));
+		m_listView.SetVertScrollPos(0);
+		m_listView.SetSelectedItem(0);
 		SelectCallStack(0);
-		m_listCtrl.SetItemState(0, LVIS_SELECTED, LVIS_SELECTED);
-		m_listCtrl.SetSelectionMark(0);
-	}
 
-	if (pProgressBar) { pProgressBar->Show(true); } // Restore cancel.	
+		if (pProgressBar) { pProgressBar->Show(true); } // Restore cancel.
+	}
+	else
+		m_listView.Refresh();
 
 	return true;
 }
@@ -191,69 +139,34 @@ void DlgListView::OnSize(UINT nType, int cx, int cy)
 		CRect rcClient;
 		GetClientRect(&rcClient);
 
-		MoveControl(IDC_EDIT_CALLSTACK, NO_MOVE, NO_MOVE, rcClient.bottom - 20, rcClient.right - 20);
+		MoveControl(IDC_CALLSTACK_TEXT, NO_MOVE, NO_MOVE, rcClient.bottom - 20, rcClient.right - 20);
 		CRect rcList = MoveControl(IDC_CALLSTACK_LIST, NO_MOVE, NO_MOVE, rcClient.bottom - 50, NO_MOVE);
 
-		MoveControl(IDC_BUTTON_APPLY_STATS_FILTER, rcList.bottom + 5, NO_MOVE, CALCULATE, NO_MOVE);
+		MoveControl(IDC_BUTTON_SHOW_FILTER, rcList.bottom + 5, NO_MOVE, CALCULATE, NO_MOVE);
 		MoveControl(IDC_BUTTON_EXPORT, rcList.bottom + 5, NO_MOVE, CALCULATE, NO_MOVE);
+
+		m_textView.RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_FRAME);
+		m_listView.RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_FRAME);
 	}
-}
-
-void DlgListView::OnLvnItemchangedCallstackList(NMHDR* pNMHDR, LRESULT* pResult)
-{
-	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
-
-	if ((pNMLV->uChanged & LVIF_STATE) && (pNMLV->uNewState & LVIS_SELECTED))
-	{
-		POSITION pos = m_listCtrl.GetFirstSelectedItemPosition();
-		if (pos)
-		{
-			int nItem = m_listCtrl.GetNextSelectedItem(pos);
-			SelectCallStack(nItem);
-		}
-	}
-	m_listCtrl.SetFocus();
-
-	*pResult = 0;
-}
-
-void DlgListView::OnLvnItemchangedAllocList(NMHDR* pNMHDR, LRESULT* pResult)
-{
-	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
-	*pResult = 0;
 }
 
 void DlgListView::SelectCallStack(int callStackIdx)
 {
-	if (callStackIdx >= 0 && callStackIdx < m_listCtrl.GetItemCount())
+	if (callStackIdx >= 0 && callStackIdx < m_listView.GetNumItems())
 	{
-		CString sStack;
-		CallStackInfo* pCallStackInfo = (CallStackInfo*)m_listCtrl.GetItemData(callStackIdx);
-		if (pCallStackInfo)
-		{
-			for (int i = 0; i < pCallStackInfo->numFrames; i++)
-			{
-				if (pCallStackInfo->frames[i])
-					sStack.AppendFormat("%s\r\n", *(pCallStackInfo->frames[i]));
-			}
-
-			GetDlgItem(IDC_EDIT_CALLSTACK)->SetWindowText(sStack);
-		}
+		if (auto pCallStackInfo = m_listView.GetItem(callStackIdx); pCallStackInfo)
+			m_textView.DrawCallStack(10, 5, pCallStackInfo, true);
 	}
 	else
-		GetDlgItem(IDC_EDIT_CALLSTACK)->SetWindowText("");
-
+		m_textView.Clear();
 }
 
-CString DlgListView::GetTextValue(int row, Column column)
+CString DlgListView::GetCellText(int row, Column column)
 {
-	const int maxTextLen{ 2048 };
-	char value[maxTextLen];
-	m_listCtrl.GetItemText(row, static_cast<int>(column), value, maxTextLen);
-	return CString(value);
+	return m_listView.GetItemText(row, static_cast<int>(column));
 }
 
-void DlgListView::OnBnClickedButtonApplyFilter()
+void DlgListView::OnBnClickedButtonShowFilter()
 {
 	if (m_filterDlg.DoModal() == IDOK)
 		UpdateList();
@@ -272,23 +185,23 @@ bool DlgListView::IsFormatSupported(ExporterBase::Format fmt)
 
 int DlgListView::GetNumExportItems()
 {
-	return m_listCtrl.GetItemCount();
+	return m_listView.GetNumItems();
 }
 
 bool DlgListView::ExportXML(std::ofstream& file, ProgressBar* pProgressBar)
 {
-	int numItems = m_listCtrl.GetItemCount();
+	int numItems = m_listView.GetNumItems();
 
 	file << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n\t<Items count=\"" << numItems << "\" >\n";
 
 	for (int i = 0; i < numItems; i++)
 	{
-		file << "\t\t<Item allocs=\"" << GetTextValue(i, Column::Allocs) << "\" "
-			<< "size=\"" << GetTextValue(i, Column::Bytes) << "\" "
-			<< "use=\"" << GetTextValue(i, Column::Usage) << "\" "
+		file << "\t\t<Item allocs=\"" << GetCellText(i, Column::Allocs) << "\" "
+			<< "size=\"" << GetCellText(i, Column::Bytes) << "\" "
+			<< "use=\"" << GetCellText(i, Column::Usage) << "\" "
 			<< ">\n\t\t\t<CallStack>\n";
 		;
-		if (auto pCallStackInfo = (CallStackInfo*)m_listCtrl.GetItemData(i); pCallStackInfo)
+		if (auto pCallStackInfo = m_listView.GetItem(i); pCallStackInfo)
 		{
 			file << "\t\t\t\t<![CDATA[\n";
 			for (int i = 0; i < pCallStackInfo->numFrames; i++)
@@ -303,19 +216,18 @@ bool DlgListView::ExportXML(std::ofstream& file, ProgressBar* pProgressBar)
 	}
 	file << "</Items>";
 	return true;
-
 }
 
 bool DlgListView::ExportTXT(std::ofstream& file, ProgressBar* pProgressBar)
 {
-	for (int i = 0; i < m_listCtrl.GetItemCount(); i++)
+	for (int i = 0; i < m_listView.GetNumItems(); i++)
 	{
-		file << "NumAllocs: " << GetTextValue(i, Column::Allocs) << "\n"
-			<< "Size: " << GetTextValue(i, Column::Bytes) << "\n"
-			<< "Use: " << GetTextValue(i, Column::Usage) << "\n"
+		file << "NumAllocs: " << GetCellText(i, Column::Allocs) << "\n"
+			<< "Size: " << GetCellText(i, Column::Bytes) << "\n"
+			<< "Use: " << GetCellText(i, Column::Usage) << "\n"
 			<< "Call Stack:\n";
 
-		if (auto pCallStackInfo = (CallStackInfo*)m_listCtrl.GetItemData(i); pCallStackInfo)
+		if (auto pCallStackInfo = m_listView.GetItem(i); pCallStackInfo)
 		{
 			for (int i = 0; i < pCallStackInfo->numFrames; i++)
 			{
@@ -330,4 +242,18 @@ bool DlgListView::ExportTXT(std::ofstream& file, ProgressBar* pProgressBar)
 	return true;
 }
 
+LRESULT DlgListView::OnListViewRowClicked(WPARAM wParam, LPARAM lParam)
+{
+	// wParam contains the index of the clicked row.
+	SelectCallStack(static_cast<int>(wParam));
+	return 0;
+}
 
+LRESULT DlgListView::OnListViewHeaderClicked(WPARAM wParam, LPARAM lParam)
+{
+	// wParam contains the column index (0, 1, or 2).
+	CWaitCursor waitCursor;
+	m_listView.SortByColumn(static_cast<int>(wParam), ListView::Order::Toggle);
+	m_textView.Clear();
+	return 0;
+}

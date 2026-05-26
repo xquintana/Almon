@@ -19,7 +19,7 @@ public:
 	void NotifyBufferSmall(int errorCode);
 
 protected:
-	bool m_bNotifiedBufferSmall{}; // So the message 'buffer too small' is notified only once.
+	bool m_bNotifiedBufferSmall{}; // Makes sure the message 'buffer too small' is notified only once.
 	MemoryFile m_memFileMsg; // Used to send text messages.
 	SRWLOCK m_lock; // Messages can be sent from different threads.
 };
@@ -45,7 +45,7 @@ struct CircularBuffer
 	int Read(BYTE* pBuffer, size_t maxLen, size_t& bufferLen) noexcept;
 	void SetNotifier(Notifier* pNotifier) { m_pNotifier = pNotifier; }
 
-	BYTE *m_pRead{}, *m_pWrite{}, *m_pBufferFirst{}, *m_pBufferLast{}, *m_pLapLast{};
+	BYTE* m_pRead{}, * m_pWrite{}, * m_pBufferFirst{}, * m_pBufferLast{}, * m_pLapLast{};
 	UINT64 m_readLap{}, m_writeLap{}; // A lap is incremented when the pointer reaches the end of the buffer and starts from the beginning.
 	Notifier* m_pNotifier{};
 	SRWLOCK m_lock;
@@ -77,7 +77,7 @@ private:
 	void WriteBuffer();
 
 private:
-	std::atomic<bool> m_bExitThreads = false;	
+	std::atomic<bool> m_bExitThreads = false;
 
 	CircularBuffer m_CircBuffer;
 	BYTE m_buffer[ALLOC_BUF_SIZE];
